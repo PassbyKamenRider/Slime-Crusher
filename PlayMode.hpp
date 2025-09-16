@@ -28,15 +28,6 @@ struct PlayMode : Mode {
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
-	//hexapod leg to wobble:
-	// Scene::Transform *hip = nullptr;
-	// Scene::Transform *upper_leg = nullptr;
-	// Scene::Transform *lower_leg = nullptr;
-	// glm::quat hip_base_rotation;
-	// glm::quat upper_leg_base_rotation;
-	// glm::quat lower_leg_base_rotation;
-	// float wobble = 0.0f;
-
 	//gameobject references:
 	std::vector<Scene::Transform*> belts;
 	Scene::Transform* crusher;
@@ -46,8 +37,6 @@ struct PlayMode : Mode {
 	float slime_down = 1.5f;
 	float slime_left = -4.5f;
 	float slime_right = 5.5f;
-	float slime_hit_left = 2.5f;
-	float slime_hit_right = 5.0f;
 
 	//slime prefabs
 	struct Slime {
@@ -81,13 +70,27 @@ struct PlayMode : Mode {
 	void SlimeGravity(float elapsed);
 	void SlimeStep();
 
-	//glm::vec3 get_leg_tip_position();
-
 	//music coming from the tip of the leg (as a demonstration):
-	// std::shared_ptr< Sound::PlayingSample > leg_tip_loop;
+	std::shared_ptr< Sound::PlayingSample > bgm_loop;
 
-	//car honk sound:
-	//std::shared_ptr< Sound::PlayingSample > honk_oneshot;
+	//slime spawner
+	float spawn_timer = 0.0f;
+	float spawn_interval = 2.0f;
+
+	//slime stepper
+	int step_index = 0;
+	float step_timer = 0.0f;
+	float step_interval = 0.5f;
+	std::vector<float> step_pattern = {
+		0.5f, 0.5f, 0.5f, 0.5f,
+		0.5f, 0.5f, 0.5f, 0.5f,
+		0.25f, 0.25f, 0.5f,
+		0.25f, 0.25f, 0.5f,
+		0.25f, 0.25f, 0.5f,
+		0.25f, 0.25f, 0.5f
+	};
+
+	int crush_count = 0;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;

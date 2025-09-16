@@ -35,13 +35,9 @@ Load< Scene > slime_scene(LoadTagDefault, []() -> Scene const * {
 	});
 });
 
-// Load< Sound::Sample > dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const * {
-// 	return new Sound::Sample(data_path("dusty-floor.opus"));
-// });
-
-// Load< Sound::Sample > honk_sample(LoadTagDefault, []() -> Sound::Sample const * {
-// 	return new Sound::Sample(data_path("honk.wav"));
-// });
+Load< Sound::Sample > slime_sample(LoadTagDefault, []() -> Sound::Sample const * {
+	return new Sound::Sample(data_path("slime.wav"));
+});
 
 void PlayMode::SpawnSlime()
 {
@@ -91,7 +87,6 @@ void PlayMode::UpdateCrusher(float elapsed) {
         crusher->position.z = crusher_down;
 		if (!isInHitWindow) {
 			isInHitWindow = true;
-			std::cout << "Enter Hit Window" << std::endl;
 		}
     }
     else if (crusher_timer <= crusher_duration) {
@@ -99,7 +94,6 @@ void PlayMode::UpdateCrusher(float elapsed) {
         crusher->position.z = glm::mix(crusher_down, crusher_up, t);
 		if (isInHitWindow) {
 			isInHitWindow = false;
-			std::cout << "Exit Hit Window" << std::endl;
 		}
     }
     else {
@@ -161,9 +155,7 @@ PlayMode::PlayMode() : scene(*slime_scene) {
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
 
-	//start music loop playing:
-	// (note: position will be over-ridden in update())
-	//leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
+	bgm_loop = Sound::loop(*slime_sample, 1.0f, 10.0f);
 }
 
 PlayMode::~PlayMode() {
@@ -194,12 +186,6 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		} else if (evt.key.key == SDLK_SPACE) {
 			isCrushing = true;
 			return true;
-		} else if (evt.key.key == SDLK_O) {
-			SpawnSlime();
-			return true;
-		} else if (evt.key.key == SDLK_I) {
-			SlimeStep();
-			return true;
 		}
 	} else if (evt.type == SDL_EVENT_KEY_UP) {
 		if (evt.key.key == SDLK_A) {
@@ -225,6 +211,20 @@ void PlayMode::update(float elapsed) {
 	UpdateCrusher(elapsed);
 	SlimeGravity(elapsed);
 
+	{ //check for crushes
+		if (isInHitWindow) {
+			for (auto &s : slimes) {
+				if (!s.isActive || s.isFalling) continue;
+
+				if (s.transform->position.x == 3.5f) {
+					crush_count++;
+					s.isActive = false;
+					s.transform->position = glm::vec3(slime_left, 0.0f, slime_up);
+				}
+			}
+		}
+	}
+
 	{ //update listener to camera position:
 		glm::mat4x3 frame = camera->transform->make_parent_from_local();
 		glm::vec3 frame_right = frame[0];
@@ -232,6 +232,21 @@ void PlayMode::update(float elapsed) {
 		Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
 	}
 
+	spawn_timer += elapsed;
+	if (spawn_timer >= spawn_interval) {
+		spawn_timer -= spawn_interval;
+		SpawnSlime();
+	}
+
+	step_timer += elapsed;
+	if (step_timer >= step_pattern[step_index]) {
+		step_timer -= step_pattern[step_index];
+
+		SlimeStep();
+
+		step_index = (step_index + 1) % step_pattern.size();
+	}
+	
 	//reset button press counters:
 	left.downs = 0;
 	right.downs = 0;
@@ -260,26 +275,26 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 
 	scene.draw(*camera);
 
-	// { //use DrawLines to overlay some text:
-	// 	glDisable(GL_DEPTH_TEST);
-	// 	float aspect = float(drawable_size.x) / float(drawable_size.y);
-	// 	DrawLines lines(glm::mat4(
-	// 		1.0f / aspect, 0.0f, 0.0f, 0.0f,
-	// 		0.0f, 1.0f, 0.0f, 0.0f,
-	// 		0.0f, 0.0f, 1.0f, 0.0f,
-	// 		0.0f, 0.0f, 0.0f, 1.0f
-	// 	));
+	{ //use DrawLines to overlay some text:
+		glDisable(GL_DEPTH_TEST);
+		float aspect = float(drawable_size.x) / float(drawable_size.y);
+		DrawLines lines(glm::mat4(
+			1.0f / aspect, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		));
 
-	// 	constexpr float H = 0.09f;
-	// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-	// 		glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-	// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-	// 		glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-	// 	float ofs = 2.0f / drawable_size.y;
-	// 	lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-	// 		glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-	// 		glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-	// 		glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-	// }
+		constexpr float H = 0.09f;
+		lines.draw_text("Crush Count: " + std::to_string(crush_count),
+			glm::vec3(-aspect + 0.1f * H, 1.0 - 1.2f * H, 0.0),
+			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+		float ofs = 2.0f / drawable_size.y;
+		lines.draw_text("Crush Count: " + std::to_string(crush_count),
+			glm::vec3(-aspect + 0.1f * H + ofs, 1.0 - 1.2f * H + ofs, 0.0),
+			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+	}
 	GL_ERRORS();
 }
